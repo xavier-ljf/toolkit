@@ -1,12 +1,3 @@
-git clone git@github.com:xavier-ljf/skill-dispatcher.git skill-dispatcher
-
-cd skill-dispatcher
-npm install
-npm run build
-
-cd inventory
-
-
 npx skills add https://github.com/vercel-labs/skills -a universal -y --skill find-skills
 
 npx skills add obra/superpowers -a universal -y
@@ -36,3 +27,6 @@ npx skills add https://github.com/ant-design/antd-skill -a universal -y --skill 
 npx skills add https://github.com/ant-design/ant-design-cli -a universal -y --skill antd
 
 npx skills add https://github.com/op7418/humanizer-zh -a universal -y --skill humanizer-zh 
+
+# ---------- my skills ----------
+npx skills add https://github.com/xavier-ljf/toolkit -a universal -y --skill blog-writer-zh
