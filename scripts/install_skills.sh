@@ -29,4 +29,6 @@ npx skills add https://github.com/ant-design/ant-design-cli -a universal -y --sk
 npx skills add https://github.com/op7418/humanizer-zh -a universal -y --skill humanizer-zh 
 
 # ---------- my skills ----------
-npx skills add https://github.com/xavier-ljf/toolkit -a universal -y --skill blog-writer-zh
+npx skills add https://github.com/xavier-ljf/toolkit -a universal -y --skill \
+    blog-writer-zh \
+    issue-batch-sdd
