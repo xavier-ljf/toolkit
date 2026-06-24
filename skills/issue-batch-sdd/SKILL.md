@@ -1,13 +1,13 @@
 ---
 name: issue-batch-sdd
-description: Use when the user provides an issue list, bug backlog, QA notes, or improvement list and wants the agent to triage, prioritize, and implement a small branch-isolated batch via subagent-driven development. Triggers when issues may overlap, need context grouping, or require implementer/reviewer subagents.
+description: Triage, prioritize, and implement a branch-isolated batch of issue fixes via subagent-driven development. Invoke when given an issue list, bug backlog, QA notes, or improvement list.
 ---
 
 # Issue Batch SDD
 
 Turn a loose issue list into a small, serial batch of branch-isolated development work using `subagent-driven-development`.
 
-This is a controller skill. The main agent handles intake, light triage, context grouping, prioritization, branch sequencing, and durable progress. It should not dive deeply into implementation; use subagents when deeper analysis is needed.
+This is a controller skill. The main agent handles intake, triage, context grouping, prioritization, branch sequencing, and durable progress. It should not implement directly; dispatch subagents for deeper analysis and implementation.
 
 ## Core Rules
 
@@ -17,6 +17,7 @@ This is a controller skill. The main agent handles intake, light triage, context
 - Allow grouping for shared context only. Do not merge multiple issues into one implementation task or one branch.
 - Use one branch per issue.
 - Store batch artifacts under `.agents/issue-sdd/`.
+- Add the artifacts directory to `.gitignore` to prevent conflicts during branch switching.
 - Do not merge completed issue branches. The human reviews and decides whether to merge.
 
 ## Relationship To Subagent-Driven Development
@@ -65,32 +66,58 @@ Create only useful files. `decision-needed.md` is only needed when an issue requ
 
 Read the issue list once and normalize it into `intake.md`.
 
-For each issue, record:
+```text
+# Intake
 
-- issue id or generated local id
-- original text
-- type: bug, improvement, UX, performance, test, docs, ops, unknown
-- suspected surface area from light inspection only
-- user impact
-- obvious dependencies or conflicts
-- missing reproduction details or ambiguity
+Source: <issue list source>
+
+## Issues
+
+### Issue <issue-id/local-id>: <title>
+
+- Type: bug | improvement | UX | performance | test | docs | ops | unknown
+- Original text: <verbatim>
+- User impact: <who/what affected, severity>
+- Likely surface area: <from light inspection only>
+- Ambiguity: <missing reproduction steps, unclear expected behavior>
+- Dependencies/Conflicts: <other issues, shared code, ordering>
+
+### Issue <issue-id/local-id>: <title>
+
+```
 
 Light inspection means enough context to route work, not tracing implementation. If deeper code analysis is needed during triage, dispatch a subagent for focused investigation and have it write findings to the batch artifacts.
 
-## Context Grouping
+## Triage
 
-Mark issues as context-grouped when they should be understood together because they may share:
+Write selected order, deferred issues, and their rationales to `triage.md`.
 
-- the same screen, API, workflow, data model, or permission path
-- the same root cause
-- sequential dependency
-- potentially conflicting behavior expectations
+```text
+# Triage
 
-Context grouping never means combined development. Each selected issue still gets its own branch and implementer/reviewer cycle.
+Batch size: <count>
 
-Write grouping notes in `triage.md`. When a later issue needs prior context, point its subagent to the exact earlier artifact files it should read.
+## Selected Issues (In Execution Order)
 
-## Prioritization
+### Issue <issue-id>: <title>
+
+- Priority rationale: <reason>
+- Scope fit: <reason>
+- Context sharing: <dependency analysis - whether sharing context with previous issues>
+- Branch: <branch name>
+
+### Issue <issue-id>: <title>
+
+...
+
+## Deferred Issues
+
+- <issue-id>: <defer reason>
+...
+
+```
+
+### Prioritization
 
 Rank issues using this order:
 
@@ -105,16 +132,45 @@ Within the same priority class, prefer issues with clearer reproduction steps, s
 
 Select the requested count, or 3 by default. Never select more than 5 in one batch.
 
-Write selected order, deferred issues, context groups, and rationale to `triage.md`.
+### Dependency Analysis
 
-## Issue Statuses
+Within selected issues, mark the issues as context-sharing when they should be understood together because they may share:
+
+- the same screen, API, workflow, data model, or permission path
+- the same root cause
+- sequential dependency
+- potentially conflicting behavior expectations
+
+Dependency analysis can be deeper than light inspection, but still should not trace implementation details.
+
+Context grouping never means combined development. Each selected issue still gets its own branch and implementer/reviewer cycle.
+
+## Process
 
 Use these statuses in `progress.md`:
+
+```text
+# Process
+
+## Status
+
+| Issue ID | Title | Status |
+| --- | --- | --- |
+| <issue-id> | <title> | <status> |
+...
+
+## Ledger
+
+- YYYY-MM-DD HH:MM:SS: <action>
+...
+
+```
+
+### Statuses
 
 | Status | Meaning | Trigger |
 | --- | --- | --- |
 | `TRIAGED` | The issue has been normalized and lightly classified. | Intake has enough information to rank or defer the issue. |
-| `CONTEXT_GROUPED` | The issue is related to one or more other issues for analysis context only. | Triage finds shared surface area, root cause, dependency, or possible behavior conflict. |
 | `DEFERRED` | The issue is not selected for the current batch. | It falls below the batch cutoff, lacks enough detail, duplicates another issue, or should wait for another branch/decision. |
 | `IN_DEVELOPMENT` | An implementer/fix subagent is working on the issue branch. | The branch and `brief.md` exist and implementation or focused investigation has started. |
 | `IN_REVIEW` | A reviewer subagent is checking the issue implementation. | Implementer reports completion and the review package is ready. |
@@ -122,6 +178,8 @@ Use these statuses in `progress.md`:
 | `NEEDS_HUMAN_DECISION` | The issue requires a product, architecture, data, permission, UX, or scope decision before code should be changed. | Implementer or main agent writes `decision-needed.md` and stops implementation for this issue. |
 | `DONE_FOR_HUMAN_REVIEW` | The issue branch passed the implementer/reviewer loop and is ready for human review. | Reviewer passes spec compliance and approves code quality. |
 | `BLOCKED` | The issue cannot make useful progress in this batch. | Required context, environment, dependency, or reproduction path is unavailable after reasonable focused investigation. |
+
+### Ledger
 
 Append progress entries as work completes. This ledger is the recovery source after context compaction.
 
@@ -133,8 +191,9 @@ For each selected issue, in priority order:
 2. Write `brief.md` with the single issue scope, relevant context group notes, and links to exact prior artifacts if needed.
 3. Run the implementation/review loop according to `subagent-driven-development`.
 4. If a major decision is required, write or verify `decision-needed.md`, mark `NEEDS_HUMAN_DECISION`, and continue to the next issue.
-5. If the issue is blocked, mark `BLOCKED` with the blocker and continue.
-6. When review passes, mark `DONE_FOR_HUMAN_REVIEW`.
+5. If the implementer finds the current issue is sequentially dependent on or conflicts with previous issues, treat it as `NEEDS_HUMAN_DECISION`.
+6. If the issue is blocked, mark `BLOCKED` with the blocker and continue.
+7. When review passes, mark `DONE_FOR_HUMAN_REVIEW`.
 
 Do not start the next issue until the current issue is done, blocked, or waiting for human decision.
 
@@ -143,7 +202,7 @@ Do not start the next issue until the current issue is done, blocked, or waiting
 Use one branch per issue. Prefer:
 
 ```text
-issue-batch-sdd/<issue-id-or-slug>
+issue-sdd/<issue-id-or-slug>
 ```
 
 If a later issue depends on an earlier completed branch, note the dependency and ask the human whether to base the later branch on the earlier issue branch or wait until it is merged.
@@ -206,7 +265,7 @@ Batch complete.
 
 1. QL-18 export button fails on filtered product list
    Status: DONE_FOR_HUMAN_REVIEW
-   Branch: issue-batch-sdd/ql-18-export-filtered-list
+   Branch: issue-sdd/ql-18-export-filtered-list
    Verification: see issue-1-ql-18-export-filtered-list/implementer-report.md
 
 2. QL-22 document permissions unclear for archived files
@@ -215,6 +274,6 @@ Batch complete.
 
 3. QL-31 search result ordering feels inconsistent
    Status: DONE_FOR_HUMAN_REVIEW
-   Branch: issue-batch-sdd/ql-31-search-ordering
+   Branch: issue-sdd/ql-31-search-ordering
    Verification: see issue-3-ql-31-search-ordering/implementer-report.md
 ```
