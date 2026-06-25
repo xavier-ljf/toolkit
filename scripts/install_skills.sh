@@ -1,5 +1,7 @@
 npx skills add https://github.com/vercel-labs/skills -a universal -y --skill find-skills
 
+npx skills add https://github.com/github/awesome-copilot -a universal -y --skill git-commit
+
 npx skills add obra/superpowers -a universal -y
 
 npx skills add https://github.com/anthropics/skills -a universal -y --skill \
@@ -26,7 +28,7 @@ npx skills add https://github.com/vercel-labs/agent-browser --skill agent-browse
 npx skills add https://github.com/ant-design/antd-skill -a universal -y --skill ant-design
 npx skills add https://github.com/ant-design/ant-design-cli -a universal -y --skill antd
 
-npx skills add https://github.com/op7418/humanizer-zh -a universal -y --skill humanizer-zh 
+npx skills add https://github.com/op7418/humanizer-zh -a universal -y --skill humanizer-zh
 
 # ---------- my skills ----------
 npx skills add https://github.com/xavier-ljf/toolkit -a universal -y --skill \
