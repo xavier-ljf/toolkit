@@ -17,7 +17,6 @@ This is a controller skill. The main agent handles intake, triage, context group
 - Allow grouping for shared context only. Do not merge multiple issues into one implementation task or one branch.
 - Use one branch per issue.
 - Store batch artifacts under `.agents/issue-sdd/`.
-- Add the artifacts directory to `.gitignore` to prevent conflicts during branch switching.
 - Do not merge completed issue branches. The human reviews and decides whether to merge.
 
 ## Relationship To Subagent-Driven Development
@@ -41,7 +40,13 @@ Avoid restating the full SDD workflow. For implementer/reviewer dispatches, refe
 
 ## Batch Artifacts
 
-Create one batch directory:
+Initialize the workspace and gitignore with the provided script:
+
+```bash
+bash skills/issue-batch-sdd/init-workspace.sh
+```
+
+Then create the batch directory:
 
 ```text
 .agents/issue-sdd/YYYY-MM-DD-HHMM/
