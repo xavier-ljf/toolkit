@@ -1,13 +1,17 @@
-# Update PSReadLine: Install-Module PSReadLine -Force
-Import-Module PSReadLine
-# Turn on tab completion
-Set-PSReadLineKeyHandler -Key Tab -Function MenuComplete
-# Turn on command suggestion
-Set-PSReadLineOption -PredictionSource History
-Set-PSReadLineOption -PredictionViewStyle InlineView
-# Turn on history search
-Set-PSReadLineKeyHandler -Key UpArrow -Function HistorySearchBackward
-Set-PSReadLineKeyHandler -Key DownArrow -Function HistorySearchForward
+try {
+    # Update PSReadLine: Install-Module PSReadLine -Force
+    Import-Module PSReadLine
+    # Turn on tab completion
+    Set-PSReadLineKeyHandler -Key Tab -Function MenuComplete
+    # Turn on history search
+    Set-PSReadLineKeyHandler -Key UpArrow -Function HistorySearchBackward
+    Set-PSReadLineKeyHandler -Key DownArrow -Function HistorySearchForward
+    # Turn on command suggestion
+    Set-PSReadLineOption -PredictionSource History
+    Set-PSReadLineOption -PredictionViewStyle InlineView
+} catch {
+    # Ignore environments that do not support PSReadLine.
+}
 
 function c {
     Clear-Host
