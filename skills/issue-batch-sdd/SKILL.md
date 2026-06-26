@@ -7,17 +7,17 @@ description: Triage, prioritize, and implement a branch-isolated batch of issue 
 
 Turn a loose issue list into a small, serial batch of branch-isolated development work using `subagent-driven-development`.
 
-This is a controller skill. The main agent handles intake, triage, context grouping, prioritization, branch sequencing, and durable progress. It should not implement directly; dispatch subagents for deeper analysis and implementation.
+This is a controller skill. The main agent handles intake, triage, context grouping, prioritization, branch sequencing, and durable progress; it dispatches subagents for deeper analysis and implementation rather than implementing directly.
 
 ## Core Rules
 
 - Default to 3 issues when the user does not specify a count.
 - Process at most 5 issues in one batch. If the user requests more than 5, explain the cap and ask them to split the work or select the first batch.
 - Execute issues serially under main-agent coordination.
-- Allow grouping for shared context only. Do not merge multiple issues into one implementation task or one branch.
-- Use one branch per issue.
-- Store batch artifacts under `.agents/issue-sdd/`.
+- Group issues only for shared context; never merge issues into one task or branch. Use one branch per issue.
+- Store batch artifacts under `.agents/issue-sdd/` (add to `.gitignore` using the init script).
 - Do not merge completed issue branches. The human reviews and decides whether to merge.
+- This skill stops at `DONE_FOR_HUMAN_REVIEW` (or `BLOCKED` / `NEEDS_HUMAN_DECISION`). To continue a single issue after human review — apply feedback, update artifacts, or open a GitHub/Gitee PR/MR — use the `issue-batch-followup` skill. `DONE_FOR_HUMAN_REVIEW` is the handoff point.
 
 ## Relationship To Subagent-Driven Development
 
@@ -27,7 +27,7 @@ This skill depends on the local `subagent-driven-development` skill. If it is no
 npx skills add https://github.com/obra/superpowers --skill subagent-driven-development
 ```
 
-Before implementing any issue, read and follow the local `subagent-driven-development` skill. This skill only decides issue selection, ordering, context handoff, and batch bookkeeping.
+Before implementing any issue, read and follow the local `subagent-driven-development` skill.
 
 Avoid restating the full SDD workflow. For implementer/reviewer dispatches, refer to `subagent-driven-development` for:
 
@@ -52,7 +52,7 @@ Then create the batch directory:
 .agents/issue-sdd/YYYY-MM-DD-HHMM/
 ```
 
-Recommended files:
+Recommended files (`issue-batch-followup` reuses this layout):
 
 ```text
 intake.md
@@ -62,10 +62,15 @@ issue-<n>-<slug>/
   brief.md
   implementer-report.md
   reviewer-report.md
-  decision-needed.md
+  decision-needed.md        # when human direction is needed
+  followup-report.md        # created/updated by issue-batch-followup
+  pr-body.md                # created/updated by issue-batch-followup
 ```
 
-Create only useful files. `decision-needed.md` is only needed when an issue requires human direction. Test commands and results belong in `implementer-report.md` or `reviewer-report.md`, not a separate test-results file.
+Create only useful files:
+
+- `decision-needed.md` is only needed when an issue requires human direction.
+- `followup-report.md` and `pr-body.md` are only created by `issue-batch-followup` after `DONE_FOR_HUMAN_REVIEW`.
 
 ## Intake
 
@@ -91,7 +96,7 @@ Source: <issue list source>
 
 ```
 
-Light inspection means enough context to route work, not tracing implementation. If deeper code analysis is needed during triage, dispatch a subagent for focused investigation and have it write findings to the batch artifacts.
+Light inspection means enough context to route work, not tracing implementation. If deeper analysis is needed during triage, dispatch a subagent for focused investigation and write findings to the batch artifacts.
 
 ## Triage
 
@@ -139,16 +144,14 @@ Select the requested count, or 3 by default. Never select more than 5 in one bat
 
 ### Dependency Analysis
 
-Within selected issues, mark the issues as context-sharing when they should be understood together because they may share:
+Within selected issues, mark issues as context-sharing when they should be understood together because they may share:
 
 - the same screen, API, workflow, data model, or permission path
 - the same root cause
 - sequential dependency
 - potentially conflicting behavior expectations
 
-Dependency analysis can be deeper than light inspection, but still should not trace implementation details.
-
-Context grouping never means combined development. Each selected issue still gets its own branch and implementer/reviewer cycle.
+Dependency analysis can be deeper than light inspection, but still should not trace implementation details. Context grouping never means combined development.
 
 ## Process
 
@@ -159,9 +162,9 @@ Use these statuses in `progress.md`:
 
 ## Status
 
-| Issue ID | Title | Status |
-| --- | --- | --- |
-| <issue-id> | <title> | <status> |
+| Issue ID | Title | Branch | Status |
+| --- | --- | --- | --- |
+| <id> | <title> | <branch> | <status> |
 ...
 
 ## Ledger
@@ -173,6 +176,10 @@ Use these statuses in `progress.md`:
 
 ### Statuses
 
+This is the canonical status lifecycle for issue-sdd work; `issue-batch-followup` references it.
+
+During the batch (set by this skill):
+
 | Status | Meaning | Trigger |
 | --- | --- | --- |
 | `TRIAGED` | The issue has been normalized and lightly classified. | Intake has enough information to rank or defer the issue. |
@@ -181,8 +188,18 @@ Use these statuses in `progress.md`:
 | `IN_REVIEW` | A reviewer subagent is checking the issue implementation. | Implementer reports completion and the review package is ready. |
 | `NEEDS_FIX` | Review found blocking issues that require another implementation pass. | Reviewer fails spec compliance or code quality, or raises Critical/Important findings. |
 | `NEEDS_HUMAN_DECISION` | The issue requires a product, architecture, data, permission, UX, or scope decision before code should be changed. | Implementer or main agent writes `decision-needed.md` and stops implementation for this issue. |
-| `DONE_FOR_HUMAN_REVIEW` | The issue branch passed the implementer/reviewer loop and is ready for human review. | Reviewer passes spec compliance and approves code quality. |
+| `DONE_FOR_HUMAN_REVIEW` | The issue branch passed the implementer/reviewer loop and is ready for human review. **Handoff point to `issue-batch-followup`.** | Reviewer passes spec compliance and approves code quality. |
 | `BLOCKED` | The issue cannot make useful progress in this batch. | Required context, environment, dependency, or reproduction path is unavailable after reasonable focused investigation. |
+
+After `DONE_FOR_HUMAN_REVIEW` (set by `issue-batch-followup`):
+
+| Status | Meaning | Trigger |
+| --- | --- | --- |
+| `HUMAN_CHANGES_REQUESTED` | Human review requested changes for this issue. | Human gives feedback on the reviewed branch. |
+| `FOLLOWUP_IN_PROGRESS` | Followup changes are being implemented. | `issue-batch-followup` starts making the requested changes. |
+| `FOLLOWUP_BLOCKED` | Followup cannot continue without human decision or unavailable context. | Followup hits a decision, scope, or environment blocker. |
+| `APPROVED_BY_HUMAN` | Human explicitly approved this issue for PR/MR creation. | Human gives explicit approval (see Human Approval Gate in `issue-batch-followup`). |
+| `PR_OPENED` | A GitHub PR or Gitee pull request was created. | `issue-batch-followup` creates the PR/MR after approval. |
 
 ### Ledger
 
@@ -192,10 +209,10 @@ Append progress entries as work completes. This ledger is the recovery source af
 
 For each selected issue, in priority order:
 
-1. Create or switch to a dedicated branch.
+1. Create or switch to a dedicated branch, then record the branch name in the `progress.md` Status table.
 2. Write `brief.md` with the single issue scope, relevant context group notes, and links to exact prior artifacts if needed.
-3. Run the implementation/review loop according to `subagent-driven-development`.
-4. If a major decision is required, write or verify `decision-needed.md`, mark `NEEDS_HUMAN_DECISION`, and continue to the next issue.
+3. Run the implementation/review loop according to `subagent-driven-development`. Mark `IN_DEVELOPMENT` and `IN_REVIEW` based on the subagent actions.
+4. If a major decision is required, write or verify `decision-needed.md`, mark `NEEDS_HUMAN_DECISION`, and continue to the next issue. See [Resuming After Human Decision](#resuming-after-human-decision) for the return path once the human decides.
 5. If the implementer finds the current issue is sequentially dependent on or conflicts with previous issues, treat it as `NEEDS_HUMAN_DECISION`.
 6. If the issue is blocked, mark `BLOCKED` with the blocker and continue.
 7. When review passes, mark `DONE_FOR_HUMAN_REVIEW`.
@@ -204,13 +221,13 @@ Do not start the next issue until the current issue is done, blocked, or waiting
 
 ## Branch Rules
 
-Use one branch per issue. Prefer:
+Prefer the branch name:
 
 ```text
 issue-sdd/<issue-id-or-slug>
 ```
 
-If a later issue depends on an earlier completed branch, note the dependency and ask the human whether to base the later branch on the earlier issue branch or wait until it is merged.
+If a later issue depends on an earlier completed branch, note the dependency and ask the human whether to base the later branch on the earlier issue branch (`NEEDS_HUMAN_DECISION`).
 
 ## Human Decision Notes
 
@@ -224,6 +241,16 @@ Create `decision-needed.md` when implementation would require the agent to choos
 
 Do not let the implementer make the decision implicitly.
 
+## Resuming After Human Decision
+
+When a human provides a decision for an issue in `NEEDS_HUMAN_DECISION` state:
+
+1. Read `decision-needed.md` and the human's decision.
+2. Update `brief.md` to lock the decision into the issue scope: replace open options with the chosen path and remove the ambiguity that paused work.
+3. Switch back to the existing issue branch. Do not create a new branch.
+4. Resume per-issue workflow from step 3.
+5. If the decision invalidates prior implementation on the branch, implementer should reconcile or redo the affected work before continuing.
+
 ## Context Handoff To Later Issues
 
 Later issue agents may read earlier artifacts when helpful, such as:
@@ -234,23 +261,7 @@ Later issue agents may read earlier artifacts when helpful, such as:
 - earlier `reviewer-report.md`
 - earlier `decision-needed.md`
 
-Tell them exactly which files matter. Do not ask a later subagent to read the whole batch directory unless the issue genuinely requires it.
-
-Prior issue context is advisory. It must not expand the current issue's scope without explicit human approval.
-
-## Human Review Output
-
-At the end of the batch, report:
-
-- selected issues and rationale
-- deferred issues and rationale
-- status per issue
-- branch per completed issue
-- tests/checks summarized from reports
-- decision notes needing human input
-- recommended merge order if dependencies exist
-
-Make clear that branches are ready for human review, not automatically merged.
+Tell them exactly which files matter; do not ask a later subagent to read the whole batch directory unless the issue genuinely requires it. Prior issue context is advisory and must not expand the current issue's scope without explicit human approval.
 
 ## Red Flags
 

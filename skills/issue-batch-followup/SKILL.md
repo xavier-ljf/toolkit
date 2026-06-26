@@ -18,17 +18,16 @@ Do not use this skill for:
 - opening pull requests for branches not produced by `issue-batch-sdd`
 - platforms other than GitHub or Gitee
 
-**Required background:** Use `issue-batch-sdd` to understand the artifact layout, branch-per-issue rule, and status meanings.
+**Required background:** This skill reuses `issue-batch-sdd`'s artifact layout, branch rules, artifact-commit rules, and the canonical status lifecycle — see that skill for definitions. The handoff point is `DONE_FOR_HUMAN_REVIEW`.
 
 ## Core Rules
 
 - Handle exactly one issue at a time.
 - Work on the existing issue branch. Do not create a new followup branch unless the human explicitly asks.
 - Treat human feedback as authoritative but keep it inside the selected issue scope.
-- Do not commit `.agents/issue-sdd/` artifacts. Artifact content may only be summarized or copied into the pull request description.
-- Do not create a pull request until the human explicitly says the issue is approved or asks to open the PR/MR.
-- Support remote issue and PR operations only on GitHub and Gitee.
-- Use `gh` CLI for GitHub and the Gitee MCP tools for Gitee.
+- Do not commit `.agents/issue-sdd/` artifacts; artifact content may only be summarized or copied into the pull request description.
+- Do not create a pull request until the human explicitly approves the issue or asks to open the PR/MR (see [Human Approval Gate](#human-approval-gate)).
+- Remote issue and PR operations are supported only on GitHub and Gitee: use `gh` CLI for GitHub and the Gitee MCP tools for Gitee.
 
 ## Inputs
 
@@ -40,31 +39,30 @@ Find the issue from one or more user-provided hints:
 - batch directory
 - remote issue URL
 
-If the user does not identify exactly one issue, use current branch name as the input.
+Resolve in this order:
 
-The `progress.md` Status table carries a `Branch` column. Inspect `.agents/issue-sdd/*/progress.md` to resolve the issue in one read.
+1. Match the hints against `.agents/issue-sdd/*/progress.md` (the Status table carries a `Branch` column). If exactly one issue matches, use it.
+2. If no hint matches, use the current branch name as the input and resolve it against `progress.md`.
+3. If multiple candidates match and the current branch cannot disambiguate, ask the human to confirm the branch or batch directory before proceeding.
 
-If provided information is ambiguous or not enough, ask the human to confirm the branch or batch directory before proceeding.
+To list candidate issues, prefer running the listing script instead of reading each `progress.md`:
+
+```bash
+bash skills/issue-batch-followup/scripts/list-issues.sh
+```
+
+Prints `<batch>\t<progress row>` for each issue row that has a branch, to help identify the target issue.
 
 ## Artifact Contract
 
-Read the useful files for the selected issue before changing code:
+The artifact layout is defined by `issue-batch-sdd` (see its Batch Artifacts section); this skill does not redefine it.
 
-```text
-.agents/issue-sdd/YYYY-MM-DD-HHMM/
-  intake.md
-  triage.md
-  progress.md
-  issue-<n>-<slug>/
-    brief.md
-    implementer-report.md
-    reviewer-report.md
-    decision-needed.md        # if present
-    followup-report.md        # create/update during this skill
-    pr-body.md                # create/update before PR/MR creation
-```
+Read the useful files for the selected issue before changing code, especially the issue directory's `brief.md`, `implementer-report.md`, `reviewer-report.md`, and `decision-needed.md` if present.
 
-Create only the followup files that are useful. Keep them concise and factual.
+This skill additionally creates/updates two files in the issue directory, kept concise and factual:
+
+- `followup-report.md` — create/update during this skill
+- `pr-body.md` — create/update before PR/MR creation
 
 ### `followup-report.md`
 
@@ -133,33 +131,25 @@ Do not paste private scratch notes, chain-of-thought, unrelated logs, or raw `.a
 1. **Identify one issue.** Confirm the issue id/title, branch, and artifact directory.
 2. **Check status, then switch to the issue branch.** Do not overwrite unrelated user changes.
 3. **Read artifacts.** Read the issue brief, implementation report, reviewer report, decision note if present, and relevant batch files.
-4. **Classify the human feedback** and note in `followup-report.md`.
-   - If it is in scope and actionable, implement it.
-   - If it is unclear, ask one focused question.
-   - If it changes product behavior, permissions, storage, schema, audit semantics, or issue scope, write/update `decision-needed.md` and ask the human.
+4. **Classify the human feedback** and note it in `followup-report.md`:
+   - If in scope and actionable, implement it.
+   - If unclear, ask one focused question.
+   - If it changes product behavior, permissions, storage, schema, audit semantics, or issue scope, ask the human for confirmation.
    - If it is a new issue, recommend creating a separate issue instead of expanding this branch.
-   - If it is an approval, go to step 9.
+   - If it is an approval, go to step 8.
 5. **Make requested changes.** Use the repo's normal development and test practices.
 6. **Verify.** Run the smallest relevant checks that prove the followup. Broaden verification if shared behavior changed.
 7. **Wait for approval.** If the human has not approved, report that the branch is ready for another human review.
-8. **Commit code changes when appropriate.** Commit only intended repository changes. Keep `.agents/issue-sdd/` uncommitted.
-9. **Update artifacts.** Update `followup-report.md`, and `progress.md`.
+8. **Commit code changes when appropriate.** Commit only intended repository changes; keep `.agents/issue-sdd/` uncommitted.
+9. **Update artifacts.** Update `followup-report.md` and `progress.md`.
 10. **Prepare PR/MR body.** Write `pr-body.md` from the public artifact summary.
 11. **Create PR/MR only after explicit approval.** Push the issue branch if needed, then use the platform-specific path below.
 
 ## Status Updates
 
-Update the selected issue row in `progress.md` when useful:
+The canonical status lifecycle is defined by `issue-batch-sdd` (see its Statuses section); this skill does not redefine it. It transitions the selected issue through the post-review statuses: `HUMAN_CHANGES_REQUESTED`, `FOLLOWUP_IN_PROGRESS`, `APPROVED_BY_HUMAN`, `PR_OPENED`, or `FOLLOWUP_BLOCKED`.
 
-| Status | Meaning |
-| --- | --- |
-| `HUMAN_CHANGES_REQUESTED` | Human review requested changes for this issue. |
-| `FOLLOWUP_IN_PROGRESS` | Followup changes are being implemented. |
-| `FOLLOWUP_BLOCKED` | Followup cannot continue without human decision or unavailable context. |
-| `APPROVED_BY_HUMAN` | Human explicitly approved this issue for PR/MR creation. |
-| `PR_OPENED` | GitHub PR or Gitee pull request was created. |
-
-Append a timestamped ledger entry for each meaningful transition.
+Update the selected issue row in `progress.md` when useful, and append a timestamped ledger entry for each meaningful transition.
 
 ## Git Operation Contract
 
@@ -168,7 +158,7 @@ Before committing or pushing:
 - inspect the worktree status
 - stage only intended repository files
 - leave `.agents/issue-sdd/` unstaged
-- do not delete or rewrite user changes unrelated to the issue
+- do not delete or rewrite human changes unrelated to the issue
 - use the existing repository commit style if one is obvious
 
 Before PR/MR creation:
@@ -199,9 +189,8 @@ If `gh` is not authenticated or the repository is not on GitHub, stop and report
 Use this path when the target repository remote is Gitee.
 
 1. Identify `owner`, `repo`, current branch, target base branch, and issue number if available.
-2. Use Gitee MCP tools, not raw HTTP calls.
-3. Create the pull request with `mcp__gitee__create_pull`.
-4. Set:
+2. Use the Gitee MCP `create_pull` tool (service `mcp_gitee`), not raw HTTP calls.
+3. Set:
    - `owner`: repository owner path
    - `repo`: repository path
    - `base`: target branch

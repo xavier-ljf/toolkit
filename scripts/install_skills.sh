@@ -33,4 +33,5 @@ npx skills add https://github.com/op7418/humanizer-zh -a universal -y --skill hu
 # ---------- my skills ----------
 npx skills add https://github.com/xavier-ljf/toolkit -a universal -y --skill \
     blog-writer-zh \
-    issue-batch-sdd
+    issue-batch-sdd \
+    issue-batch-followup
