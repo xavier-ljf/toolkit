@@ -71,25 +71,25 @@ This skill additionally creates/updates two files in the issue directory, kept c
 
 ## Human Feedback
 
-- <date/time>: <human feedback or approval>
-
-## Scope Assessment
-
-- In scope: <yes/no>
-- Reason: <why>
-- Decision needed: <yes/no and what>
+- <date/time>: <change requests or approval message>
 
 ## Followup Changes
 
-- <what changed>
+("None changed" if approved without change requests)
 
-### Files Touched
+### Assessment
 
-- <path>
+- In scope: <yes/no>
+- Reason: <why this is in or out of scope>
+- Decision needed: <yes/no and what>
+
+### Changes Made
+
+- <what changed and files touched>
 
 ### Verification
 
-- `<command>`: pass | fail | not run
+- <tests: pass | fail | not run>
 
 ### Remaining Risk
 
@@ -97,9 +97,9 @@ This skill additionally creates/updates two files in the issue directory, kept c
 
 ## Approval
 
-- Status: pending | changes-requested | approved
+- Status: <approved/rejected>
 - Approved by: <human name or "user">
-- Approval note: <exact approval request or summary>
+- Approval note: <approval summary>
 ```
 
 ### `pr-body.md`
