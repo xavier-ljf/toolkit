@@ -72,6 +72,18 @@ Create only useful files:
 - `decision-needed.md` is only needed when an issue requires human direction.
 - `followup-report.md` and `pr-body.md` are only created by `issue-batch-followup` after `DONE_FOR_HUMAN_REVIEW`.
 
+### Artifact Commit Boundary
+
+`.agents/issue-sdd/` artifacts are controller handoff state, not product changes, and MUST NOT enter issue commits. When dispatching an implementer or fixer, tell it to commit only intended issue files and never stage files under `.agents/issue-sdd/` or other SDD scratch directories.
+
+Before accepting a commit, verify its path list:
+
+```bash
+git show --name-status --format= HEAD
+```
+
+If a batch artifact appears, have the same subagent amend the commit to remove it before proceeding to review package generation.
+
 ## Intake
 
 Read the issue list once and normalize it into `intake.md`.
@@ -273,6 +285,7 @@ Stop, defer, or request human direction if:
 - a later issue depends on an unmerged earlier branch and the base branch choice matters
 - the issue cannot be reproduced or scoped after focused investigation
 - the reviewer finds a cross-issue conflict
+- an implementer or fixer commit includes `.agents/issue-sdd/`, reports, progress ledgers, review packages, or other handoff artifacts
 
 ## Example Summary
 
