@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # List issue rows (with branch) from all issue-batch-sdd progress.md files.
-# Usage: ./list-issues.sh
+# Usage: ./scripts/list-issues.sh
+#
+# Output format: <batch>\t<progress row>
 
 set -euo pipefail
 
@@ -17,10 +19,16 @@ fi
 
 for f in "${files[@]}"; do
   batch="$(basename "$(dirname "$f")")"
-  while IFS= read -r line; do
-    case "$line" in
-      '| Issue ID'*|'| ---'*|'|-') continue ;;
-    esac
-    printf '%s\t%s\n' "$batch" "$line"
-  done < "$f"
+  awk -v batch="$batch" '
+    /^\| Issue \|/ { in_status=1; next }
+    in_status && /^\| ---/ { next }
+    in_status && /^## / { in_status=0; next }
+    in_status && /^\|/ {
+      split($0, c, "|")
+      branch=c[4]
+      gsub(/^ +| +$/, "", branch)
+      if (branch == "" ) next
+      printf "%s\t%s\n", batch, $0
+    }
+  ' "$f"
 done
