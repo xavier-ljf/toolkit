@@ -40,11 +40,7 @@ Avoid restating the full SDD workflow. For implementer/reviewer dispatches, refe
 
 ## Batch Artifacts
 
-Initialize the workspace and gitignore with the provided script:
-
-```bash
-bash skills/issue-batch-sdd/init-workspace.sh
-```
+Initialize the workspace and gitignore with the provided script `scripts/init-workspace.sh`.
 
 Then create the batch directory:
 

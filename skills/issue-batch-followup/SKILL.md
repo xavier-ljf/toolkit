@@ -45,13 +45,7 @@ Resolve in this order:
 2. If no hint matches, use the current branch name as the input and resolve it against `progress.md`.
 3. If multiple candidates match and the current branch cannot disambiguate, ask the human to confirm the branch or batch directory before proceeding.
 
-To list candidate issues, prefer running the listing script instead of reading each `progress.md`:
-
-```bash
-bash skills/issue-batch-followup/scripts/list-issues.sh
-```
-
-Prints `<batch>\t<progress row>` for each issue row that has a branch, to help identify the target issue.
+To list candidate issues, prefer running the listing script `scripts/list-issues.sh` instead of reading each `progress.md`. It prints `<batch>\t<progress row>` for each issue row that has a branch.
 
 ## Artifact Contract
 
