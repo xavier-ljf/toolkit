@@ -21,6 +21,10 @@ function l {
     Get-ChildItem
 }
 
+function o {
+    explorer .
+}
+
 function proxy-on {
     param([string]$Proxy = "http://127.0.0.1:7897")
     $env:HTTP_PROXY = $Proxy
