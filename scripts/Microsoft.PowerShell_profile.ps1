@@ -18,7 +18,7 @@ function c {
 }
 
 function l {
-    Get-ChildItem
+    Get-ChildItem @args
 }
 
 function o {
@@ -35,4 +35,24 @@ function proxy-on {
 function proxy-off {
     Remove-Item Env:HTTP_PROXY, Env:HTTPS_PROXY -ErrorAction SilentlyContinue
     Write-Host "Proxy OFF" -ForegroundColor Yellow
+}
+
+function gb {
+    git branch @args
+}
+
+function glg {
+    git log @args
+}
+
+function gst {
+    git status @args
+}
+
+function gco {
+    git checkout @args
+}
+
+function gwt {
+    git worktree @args
 }
