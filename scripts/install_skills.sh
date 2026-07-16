@@ -1,6 +1,8 @@
 npx skills add https://github.com/vercel-labs/skills -a universal -y --skill find-skills
 
-npx skills add https://github.com/github/awesome-copilot -a universal -y --skill git-commit
+npx skills add https://github.com/github/awesome-copilot -a universal -y --skill \
+    git-commit \
+    excalidraw-diagram-generator
 
 npx skills add obra/superpowers -a universal -y
 
