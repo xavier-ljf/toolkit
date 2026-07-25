@@ -17,7 +17,8 @@ This is a controller skill. The main agent handles intake, triage, context group
 - Group issues only for shared context; never merge issues into one task or branch. Use one branch per issue.
 - Store batch artifacts under `.agents/issue-sdd/` (add to `.gitignore` using the init script).
 - Do not merge completed issue branches. The human reviews and decides whether to merge.
-- This skill stops at `DONE_FOR_HUMAN_REVIEW` (or `BLOCKED` / `NEEDS_HUMAN_DECISION`). To continue a single issue after human review — apply feedback, update artifacts, or open a GitHub/Gitee PR/MR — use the `issue-batch-followup` skill. `DONE_FOR_HUMAN_REVIEW` is the handoff point.
+- The main agent defines WHAT and WHY; implementer subagents define HOW.
+- This skill stops at `DONE_FOR_HUMAN_REVIEW` (or `BLOCKED` / `NEEDS_HUMAN_DECISION`). To continue a single issue after human review, use the `issue-batch-followup` skill.
 
 ## Relationship To Subagent-Driven Development
 
@@ -27,16 +28,37 @@ This skill depends on the local `subagent-driven-development` skill. If it is no
 npx skills add https://github.com/obra/superpowers --skill subagent-driven-development
 ```
 
-Before implementing any issue, read and follow the local `subagent-driven-development` skill.
-
-Avoid restating the full SDD workflow. For implementer/reviewer dispatches, refer to `subagent-driven-development` for:
+Before implementing any issue, read and follow the local `subagent-driven-development` skill. For implementer/reviewer dispatches, refer to `subagent-driven-development` for:
 
 - implementer and reviewer prompts
-- task brief and report handoffs
+- report file handoffs
 - diff package generation
 - review loops and fix dispatches
 - durable progress expectations
 - final review behavior
+
+### What is different from SDD
+
+| Aspect | SDD (feature-scale) | issue-batch-sdd (this skill) |
+| --- | --- | --- |
+| Brief source | Extracted from a `writing-plans` plan via `scripts/task-brief` | Hand-written by the main agent per [Brief Format](#brief-format) |
+| Brief content | Full implementation code, tests, exact paths — plan is the spec | WHAT + constraints only — implementer reads code and decides HOW |
+| Pre-dispatch artifact | `docs/superpowers/plans/feature-plan.md` | `brief.md` in the issue directory |
+| `task-brief` script | Used to extract task text | **Not used** — brief is authored directly |
+| Implementer model | Cheap tier acceptable (transcription + testing) when plan has full code | Standard tier recommended — implementer must read code, design approach, and write tests |
+| Implementer autonomy | Low when plan is complete (follow steps) | High — implementer decides file structure, naming, test cases within the brief's constraints |
+
+### Why the variant exists
+
+Issue batches differ from feature plans in three ways:
+
+1. **Scope is smaller.** A typical issue is one bug fix or one UX tweak; a feature plan covers multiple coordinated tasks. The overhead of writing a full plan with code blocks is not justified.
+2. **Discovery is part of the work.** Issues often require reading existing code to understand the fix. Forcing the main agent to pre-read all that code and write it into a plan duplicates work the implementer would do anyway.
+3. **Context budget is tighter.** A batch processes 3-5 issues serially in one session. If the main agent writes full plans for each, it burns its context window on HOW details that the implementer could have produced itself.
+
+### When to escalate to full SDD
+
+If an issue turns out to be feature-scale (multiple coordinated tasks, architectural decisions, multi-day work), stop the batch workflow for that issue and mark it `NEEDS_HUMAN_DECISION` with a recommendation to use `writing-plans` + `subagent-driven-development` directly. Do not try to force a large issue through the lightweight brief format.
 
 ## Batch Artifacts
 
@@ -62,11 +84,6 @@ issue-<n>-<slug>/
   followup-report.md        # created/updated by issue-batch-followup
   pr-body.md                # created/updated by issue-batch-followup
 ```
-
-Create only useful files:
-
-- `decision-needed.md` is only needed when an issue requires human direction.
-- `followup-report.md` and `pr-body.md` are only created by `issue-batch-followup` after `DONE_FOR_HUMAN_REVIEW`.
 
 ### Artifact Commit Boundary
 
@@ -104,7 +121,13 @@ Source: <issue list source>
 
 ```
 
-Light inspection means enough context to route work, not tracing implementation. If deeper analysis is needed during triage, dispatch a subagent for focused investigation and write findings to the batch artifacts.
+Light inspection means enough context to route work, not tracing implementation. Concretely:
+
+- **Depth signals**: read function signatures, model field declarations, route prefixes, and docstrings — not full function bodies or test internals.
+- **Tool budget**: aim for ~3-5 tool calls per issue during intake (a Glob + a Grep + a targeted Read of one key file is usually enough). If you need more, the issue is likely ambiguous enough to warrant a `NEEDS_HUMAN_DECISION` or a dispatched investigation subagent — not deeper main-agent exploration.
+- **What to record**: which files/modules are touched, what permission/data-model constraints are in play, what's ambiguous. Not how to fix it.
+
+If deeper analysis is needed during triage, dispatch a subagent for focused investigation and write findings to the batch artifacts — do not pull that investigation into the main agent's own context.
 
 ## Triage
 
@@ -213,14 +236,34 @@ After `DONE_FOR_HUMAN_REVIEW` (set by `issue-batch-followup`):
 
 Append progress entries as work completes. This ledger is the recovery source after context compaction.
 
+## Brief Format
+
+A brief tells the implementer **what to build and why**, not how. The implementer reads the codebase and decides the approach, structure, and edit points. Unlike native SDD (where the brief contains full implementation code, tests, and paths), briefs here intentionally exclude implementation detail — the main agent's context is for orchestration, not pre-writing code.
+
+### Required sections
+
+- **Goal**: user-visible outcome and any non-obvious business reason.
+- **Scope**: in-scope areas, not edit instructions. List out-of-scope items to prevent creep.
+- **Key constraints**: hard rules the implementer must respect (permission semantics, data-model invariants, backward-compat, audit).
+- **Ambiguity handling**: for each ambiguous point, either state the default to assume, or mark `NEEDS_HUMAN_DECISION` and stop. Do not investigate to resolution unless it blocks writing the brief.
+- **Verification**: how the implementer confirms completion.
+
+### Forbidden content
+
+- implementation code
+- full type/schema/error-class definitions
+- step-by-step plans
+- full file contents (link instead)
+- resolved investigation output
+
 ## Per-Issue Workflow
 
 For each selected issue, in priority order:
 
 1. Create or switch to a dedicated branch, then record the branch name in the `progress.md` Status table.
-2. Write `brief.md` with the single issue scope, relevant context group notes, and links to exact prior artifacts if needed.
+2. Write `brief.md` following [Brief Format](#brief-format), keeping investigation light.
 3. Run the implementation/review loop according to `subagent-driven-development`. Mark `IN_DEVELOPMENT` and `IN_REVIEW` based on the subagent actions.
-4. If a major decision is required, write or verify `decision-needed.md`, mark `NEEDS_HUMAN_DECISION`, and continue to the next issue. See [Resuming After Human Decision](#resuming-after-human-decision) for the return path once the human decides.
+4. If a major decision is required, write or verify `decision-needed.md`, mark `NEEDS_HUMAN_DECISION`, and continue to the next issue.
 5. If the implementer finds the current issue is sequentially dependent on or conflicts with previous issues, treat it as `NEEDS_HUMAN_DECISION`.
 6. If the issue is blocked, mark `BLOCKED` with the blocker and continue.
 7. When review passes, mark `DONE_FOR_HUMAN_REVIEW`.
@@ -282,23 +325,5 @@ Stop, defer, or request human direction if:
 - the issue cannot be reproduced or scoped after focused investigation
 - the reviewer finds a cross-issue conflict
 - an implementer or fixer commit includes `.agents/issue-sdd/`, reports, progress ledgers, review packages, or other handoff artifacts
-
-## Example Summary
-
-```text
-Batch complete.
-
-1. QL-18 export button fails on filtered product list
-   Status: DONE_FOR_HUMAN_REVIEW
-   Branch: issue-sdd/ql-18-export-filtered-list
-   Verification: see issue-1-ql-18-export-filtered-list/implementer-report.md
-
-2. QL-22 document permissions unclear for archived files
-   Status: NEEDS_HUMAN_DECISION
-   Decision note: .agents/issue-sdd/2026-06-24-1430/issue-2-ql-22-archived-permissions/decision-needed.md
-
-3. QL-31 search result ordering feels inconsistent
-   Status: DONE_FOR_HUMAN_REVIEW
-   Branch: issue-sdd/ql-31-search-ordering
-   Verification: see issue-3-ql-31-search-ordering/implementer-report.md
-```
+- the main agent is reading full function bodies or test internals during intake/triage — this means investigation depth has exceeded the controller role
+- an issue grows beyond single-task scope into feature-scale work — escalate to full `writing-plans` + `subagent-driven-development` instead
